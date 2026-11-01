@@ -1,0 +1,10 @@
+{
+  "AUTH_MODE": "firebase",
+  "API_BASE_URL": "https://api.your-community.example",
+  "FIREBASE_API_KEY": "your-firebase-public-api-key",
+  "FIREBASE_APP_ID": "your-platform-specific-firebase-app-id",
+  "FIREBASE_PROJECT_ID": "your-firebase-project-id",
+  "FIREBASE_SENDER_ID": "your-messaging-sender-id",
+  "FIREBASE_AUTH_DOMAIN": "your-project.firebaseapp.com",
+  "FIREBASE_VAPID_KEY": "your-web-push-vapid-key"
+}

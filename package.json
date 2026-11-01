@@ -1,0 +1,26 @@
+{
+  "name": "mycommunity-platform",
+  "private": true,
+  "workspaces": [
+    "apps/api",
+    "apps/admin"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev -w @mycommunity/api",
+    "dev:admin": "npm run dev -w @mycommunity/admin",
+    "build": "npm run build -w @mycommunity/api && npm run build -w @mycommunity/admin",
+    "test:api": "npm run test -w @mycommunity/api",
+    "db:migrate": "npm run migrate -w @mycommunity/api"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "overrides": {
+    "glob": "^14.0.3",
+    "minimatch": "^11.0.3"
+  },
+  "devDependencies": {
+    "playwright": "^1.56.0",
+    "prettier": "^3.9.10"
+  }
+}

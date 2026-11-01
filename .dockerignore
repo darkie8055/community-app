@@ -1,0 +1,17 @@
+**/node_modules
+**/.next
+**/dist
+**/build
+**/.dart_tool
+.git
+.local
+tmp
+output
+screenshots
+**/.env
+**/.env.*
+!**/.env.example
+**/google-services.json
+**/GoogleService-Info.plist
+**/key.properties
+**/*.jks
