@@ -401,6 +401,11 @@ function Application() {
     />
   );
 }
+const TAB_SCREENS: Record<Role, (keyof Routes)[]> = {
+  resident: ["Home", "Homes", "Community", "Marketplace", "Stores"],
+  guard: ["Home", "Visitors", "Community", "Notifications", "Profile"],
+};
+
 export function CommunityNavigator({
   notifications,
   logout,
@@ -440,11 +445,13 @@ export function CommunityNavigator({
         }}
       >
         <Stack.Navigator
-          screenOptions={{
+          screenOptions={({ route }) => ({
             headerShown: false,
             contentStyle: { backgroundColor: colors.canvas },
-            animation: "slide_from_right",
-          }}
+            animation: TAB_SCREENS[session.role].includes(route.name)
+              ? "none"
+              : "slide_from_right",
+          })}
           screenLayout={({ children }) => (
             <Shell demoControls={demoControls}>{children}</Shell>
           )}
@@ -763,7 +770,11 @@ function Shell({
             accessibilityState={{ selected: route.name === t.name }}
             accessibilityLabel={t.label}
             key={t.name}
-            onPress={() => nav.navigate(t.name)}
+            onPress={() => {
+              if (route.name !== t.name) {
+                nav.navigate(t.name);
+              }
+            }}
             style={{ flex: 1, alignItems: "center", gap: 3 }}
           >
             <View
