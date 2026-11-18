@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "../config/environment";
 import { Client } from "pg";
 // One-time operator command. Never run from the request-serving process.
 async function main() {

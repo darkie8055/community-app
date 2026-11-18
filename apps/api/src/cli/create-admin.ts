@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "../config/environment";
 import { hash } from "bcryptjs";
 import { Database } from "../database/database";
 async function main() {

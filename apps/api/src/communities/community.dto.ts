@@ -15,12 +15,32 @@ import {
 } from "class-validator";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 export class CommunityDto {
-  @ApiProperty() @Transform(({ value }) => typeof value === "string" ? value.trim() : value) @IsString() @MinLength(2) @MaxLength(100) name!: string;
-  @ApiProperty() @Transform(({ value }) => typeof value === "string" ? value.trim() : value) @IsString() @MinLength(4) @MaxLength(300) address!: string;
-  @ApiProperty() @Transform(({ value }) => typeof value === "string" ? value.trim() : value) @IsString() @MinLength(2) @MaxLength(100) city!: string;
+  @ApiProperty()
+  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @IsString()
+  @MinLength(2)
+  @MaxLength(100)
+  name!: string;
+  @ApiProperty()
+  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @IsString()
+  @MinLength(4)
+  @MaxLength(300)
+  address!: string;
+  @ApiProperty()
+  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @IsString()
+  @MinLength(2)
+  @MaxLength(100)
+  city!: string;
 }
 export class BlockDto {
-  @ApiProperty() @Transform(({ value }) => typeof value === "string" ? value.trim() : value) @IsString() @MinLength(1) @MaxLength(30) name!: string;
+  @ApiProperty()
+  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @IsString()
+  @MinLength(1)
+  @MaxLength(30)
+  name!: string;
 }
 export class FloorDto {
   @ApiProperty() @IsUUID() block_id!: string;
@@ -33,7 +53,12 @@ export class FloorDto {
 }
 export class UnitDto {
   @ApiProperty() @IsUUID() floor_id!: string;
-  @ApiProperty() @Transform(({ value }) => typeof value === "string" ? value.trim() : value) @IsString() @MinLength(1) @MaxLength(40) label!: string;
+  @ApiProperty()
+  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @IsString()
+  @MinLength(1)
+  @MaxLength(40)
+  label!: string;
   @ApiPropertyOptional() @IsOptional() @IsIn(["flat", "villa"]) kind: string =
     "flat";
 }
@@ -45,7 +70,12 @@ export class MembershipDecisionDto {
   @ApiProperty() @IsIn(["approved", "rejected"]) status!: string;
 }
 export class VisitorDto {
-  @ApiProperty() @Transform(({ value }) => typeof value === "string" ? value.trim() : value) @IsString() @MinLength(2) @MaxLength(100) name!: string;
+  @ApiProperty()
+  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @IsString()
+  @MinLength(2)
+  @MaxLength(100)
+  name!: string;
   @ApiProperty() @Matches(/^[6-9]\d{9}$/) phone!: string;
   @ApiProperty() @IsUUID() unit_id!: string;
   @ApiProperty() @IsIn(["guest", "delivery", "cab", "service"]) type!: string;
@@ -70,7 +100,7 @@ export class DecisionDto {
   @ApiProperty() @IsIn(["approved", "denied"]) decision!: string;
 }
 export class VisitQuery {
-  @IsOptional() @IsIn(['guest', 'delivery', 'cab', 'service']) type?: string;
+  @IsOptional() @IsIn(["guest", "delivery", "cab", "service"]) type?: string;
   @IsOptional() @IsISO8601({ strict: true }) from?: string;
   @IsOptional() @IsISO8601({ strict: true }) until?: string;
   @IsOptional() @IsString() @MaxLength(100) search?: string;
@@ -82,7 +112,11 @@ export class VisitQuery {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) limit = 50;
 }
 export class DeviceDto {
-  @Transform(({ value }) => typeof value === "string" ? value.trim() : value) @IsString() @MinLength(10) @MaxLength(4096) token!: string;
+  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @IsString()
+  @MinLength(10)
+  @MaxLength(4096)
+  token!: string;
   @Transform(({ value }) =>
     typeof value === "string" ? value.toLowerCase() : value,
   )

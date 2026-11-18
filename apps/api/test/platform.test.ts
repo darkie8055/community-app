@@ -1,18 +1,25 @@
+import { MemoryDatabase } from "./helpers/memory-database";
 import "reflect-metadata";
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { Database, Identity } from "../src/database/database";
+import { Identity } from "../src/database/database";
 import { PlatformService } from "../src/communities/community.service";
-import { DEMO, seed } from "../src/database/seed";
+import { DEMO, seed } from "./fixtures/seed";
 import { VisitorDto, VisitQuery } from "../src/communities/community.dto";
-import { ContentService, ItemDto } from '../src/catalog/catalog';
-import { VisitorPassService } from '../src/visitors/visitor-pass.service';
-import { plainToInstance } from 'class-transformer';
-import { validate } from 'class-validator';
-const db = new Database();
+import { ContentService } from "../src/catalog/catalog.service";
+import { ItemDto } from "../src/catalog/catalog.dto";
+import { VisitorPassService } from "../src/visitors/visitor-pass.service";
+import { plainToInstance } from "class-transformer";
+import { validate } from "class-validator";
+import { OnboardingController } from "../src/memberships/membership.controller";
+import { AuthService } from "../src/auth/auth";
+import { JwtService } from "@nestjs/jwt";
+process.env.NODE_ENV = 'test';
+const db = new MemoryDatabase();
 const service = new PlatformService(db);
-process.env.JWT_SECRET = 'test-only-visitor-pass-secret-with-more-than-32-characters';
+process.env.JWT_SECRET =
+  "test-only-visitor-pass-secret-with-more-than-32-characters";
 const passes = new VisitorPassService(service);
 const admin: Identity = { sub: DEMO.admin, name: "Admin", platformAdmin: true };
 const resident: Identity = {
@@ -26,69 +33,198 @@ const guard: Identity = {
   platformAdmin: false,
 };
 before(async () => {
-  await db.init({ memory: true });
+  await db.init();
   await db.migrate();
   await seed(db);
 });
 after(async () => db.onModuleDestroy());
-test('visitor QR passes enforce ownership, tenant, expiry, rotation, revocation and one entry', async () => {
-  const dto = Object.assign(new VisitorDto(), {name:'QR Guest',phone:'9876543210',unit_id:DEMO.unit,type:'guest',preapproved:true});
-  const visit = await service.createVisit(resident, DEMO.community, dto, randomUUID());
+test("society administrators can sign in, cannot self-promote, and keep existing passwords", async () => {
+  const onboarding = new OnboardingController(db, service);
+  const input = {name: "Society Manager", phone: "9786543109", role: "admin", email: "manager@example.invalid", password: "Isolated-test-password-429"};
+  await assert.rejects(onboarding.staff({user: resident}, DEMO.community, input));
+  await assert.rejects(onboarding.staff({user: admin}, DEMO.community, {name: input.name, phone: input.phone, role: "admin"}));
+  await onboarding.staff({user: admin}, DEMO.community, input);
+  const auth = new AuthService(db, new JwtService({secret: "isolated-test-auth-secret"}));
+  const signed = await auth.login({email: input.email, password: input.password});
+  assert.equal(signed.user.platformAdmin, false);
+  assert.ok((await service.communities(signed.user)).some(c => c.id === DEMO.community));
+  await assert.rejects(onboarding.staff({user: signed.user}, DEMO.community, {...input, phone: "9786543110"}));
+  await onboarding.staff({user: admin}, DEMO.community, {...input, password: "Different-test-password-429"});
+  await auth.login({email: input.email, password: input.password});
+  await assert.rejects(auth.login({email: input.email, password: "Different-test-password-429"}));
+});
+test("visitor QR passes enforce ownership, tenant, expiry, rotation, revocation and one entry", async () => {
+  const dto = Object.assign(new VisitorDto(), {
+    name: "QR Guest",
+    phone: "9876543210",
+    unit_id: DEMO.unit,
+    type: "guest",
+    preapproved: true,
+  });
+  const visit = await service.createVisit(
+    resident,
+    DEMO.community,
+    dto,
+    randomUUID(),
+  );
   await assert.rejects(passes.create(guard, DEMO.community, visit.id));
   const pass = await passes.create(resident, DEMO.community, visit.id, 1);
   assert.match(pass.code, /^[2-9A-HJ-NP-Z]{12}$/);
-  assert.equal((await passes.get(resident, DEMO.community, visit.id))!.code, pass.code);
-  assert.ok(!pass.payload.includes('9876543210'));
-  assert.equal((await passes.verify(guard, DEMO.community, pass.code)).id, visit.id);
+  assert.equal(
+    (await passes.get(resident, DEMO.community, visit.id))!.code,
+    pass.code,
+  );
+  assert.ok(!pass.payload.includes("9876543210"));
+  assert.equal(
+    (await passes.verify(guard, DEMO.community, pass.code)).id,
+    visit.id,
+  );
   await assert.rejects(passes.verify(resident, DEMO.community, pass.code));
-  const other = await service.createCommunity(admin, {name:'QR Other',address:'Other society',city:'Pune'});
-  await assert.rejects(passes.verify(admin, other.id, pass.code));
-  await db.scoped(admin.sub, other.id, async sql => {
-    assert.equal((await sql.query('SELECT * FROM visitor_passes WHERE entry_id=$1',[visit.id])).rows.length, 0);
+  const originalSecret = process.env.JWT_SECRET;
+  try {
+    process.env.JWT_SECRET = "rotated-test-only-pass-secret-with-32-characters";
+    assert.equal(await passes.get(resident, DEMO.community, visit.id), null);
+    await assert.rejects(passes.verify(guard, DEMO.community, pass.code));
+  } finally {
+    process.env.JWT_SECRET = originalSecret;
+  }
+  const other = await service.createCommunity(admin, {
+    name: "QR Other",
+    address: "Other society",
+    city: "Pune",
   });
-  const replacement = await passes.create(resident, DEMO.community, visit.id, 6);
+  await assert.rejects(passes.verify(admin, other.id, pass.code));
+  await db.scoped(admin.sub, other.id, async (sql) => {
+    assert.equal(
+      (
+        await sql.query("SELECT * FROM visitor_passes WHERE entry_id=$1", [
+          visit.id,
+        ])
+      ).rows.length,
+      0,
+    );
+  });
+  const replacement = await passes.create(
+    resident,
+    DEMO.community,
+    visit.id,
+    6,
+  );
   assert.notEqual(replacement.code, pass.code);
   await assert.rejects(passes.verify(guard, DEMO.community, pass.code));
   await passes.revoke(resident, DEMO.community, visit.id);
   await assert.rejects(passes.checkIn(guard, DEMO.community, replacement.code));
   const expired = await passes.create(resident, DEMO.community, visit.id);
-  await db.scoped(admin.sub, DEMO.community, sql => sql.query("UPDATE visitor_passes SET expires_at=now()-interval '1 minute' WHERE entry_id=$1",[visit.id]));
+  await db.scoped(admin.sub, DEMO.community, (sql) =>
+    sql.query(
+      "UPDATE visitor_passes SET expires_at=now()-interval '1 minute' WHERE entry_id=$1",
+      [visit.id],
+    ),
+  );
   assert.equal(await passes.get(resident, DEMO.community, visit.id), null);
   await assert.rejects(passes.verify(guard, DEMO.community, expired.code));
   const active = await passes.create(resident, DEMO.community, visit.id);
-  const results = await Promise.allSettled([passes.checkIn(guard,DEMO.community,active.code),passes.checkIn(guard,DEMO.community,active.code)]);
-  assert.equal(results.filter(r=>r.status==='fulfilled').length,1);
-  assert.equal((await service.visit(guard,DEMO.community,visit.id)).status,'inside');
-  await assert.rejects(passes.verify(guard,DEMO.community,active.code));
-  await assert.rejects(passes.create(resident,DEMO.community,visit.id));
-  const otherUnit = (await service.structure(admin,DEMO.community)).units.find(u=>u.id!==DEMO.unit)!;
-  const foreign = await service.createVisit(guard,DEMO.community,Object.assign(new VisitorDto(),dto,{unit_id:otherUnit.id,preapproved:false}),randomUUID());
-  await assert.rejects(passes.create(resident,DEMO.community,foreign.id));
-  await assert.rejects(passes.get(resident,DEMO.community,foreign.id));
-  await assert.rejects(passes.revoke(resident,DEMO.community,foreign.id));
+  const results = await Promise.allSettled([
+    passes.checkIn(guard, DEMO.community, active.code),
+    passes.checkIn(guard, DEMO.community, active.code),
+  ]);
+  assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
+  assert.equal(
+    (await service.visit(guard, DEMO.community, visit.id)).status,
+    "inside",
+  );
+  await assert.rejects(passes.verify(guard, DEMO.community, active.code));
+  await assert.rejects(passes.create(resident, DEMO.community, visit.id));
+  const otherUnit = (await service.structure(admin, DEMO.community)).units.find(
+    (u) => u.id !== DEMO.unit,
+  )!;
+  const foreign = await service.createVisit(
+    guard,
+    DEMO.community,
+    Object.assign(new VisitorDto(), dto, {
+      unit_id: otherUnit.id,
+      preapproved: false,
+    }),
+    randomUUID(),
+  );
+  await assert.rejects(passes.create(resident, DEMO.community, foreign.id));
+  await assert.rejects(passes.get(resident, DEMO.community, foreign.id));
+  await assert.rejects(passes.revoke(resident, DEMO.community, foreign.id));
 });
-test('history paginates beyond 100 and filters name, phone, flat, type and date', async () => {
-  for (let i=0;i<105;i++) await service.createVisit(guard,DEMO.community,Object.assign(new VisitorDto(),{
-    name:`Pagination Guest ${i}`,phone:'9876543210',unit_id:DEMO.unit,type:'cab',company:'History QA'
-  }),randomUUID());
-  const ids: string[]=[];
+test("history paginates beyond 100 and filters name, phone, flat, type and date", async () => {
+  for (let i = 0; i < 105; i++)
+    await service.createVisit(
+      guard,
+      DEMO.community,
+      Object.assign(new VisitorDto(), {
+        name: `Pagination Guest ${i}`,
+        phone: "9876543210",
+        unit_id: DEMO.unit,
+        type: "cab",
+        company: "History QA",
+      }),
+      randomUUID(),
+    );
+  const ids: string[] = [];
   let cursor: string | undefined;
   do {
-    const page = await service.visits(guard,DEMO.community,Object.assign(new VisitQuery(),{search:'History QA',type:'cab',limit:40,cursor}));
-    ids.push(...page.items.map(i=>i.id)); cursor=page.next_cursor ?? undefined;
-  } while(cursor);
-  assert.equal(ids.length,105); assert.equal(new Set(ids).size,105);
-  const none = await service.visits(guard,DEMO.community,Object.assign(new VisitQuery(),{search:'History QA',type:'delivery'}));
-  assert.equal(none.items.length,0);
-  const future = await service.visits(guard,DEMO.community,Object.assign(new VisitQuery(),{from:'2099-01-01T00:00:00Z'}));
-  assert.equal(future.items.length,0);
-  assert.ok((await service.visits(guard,DEMO.community,Object.assign(new VisitQuery(),{search:'9876543210'}))).items.length);
-  const flat = (await service.structure(admin,DEMO.community)).units.find(u=>u.id===DEMO.unit)!.label;
-  assert.ok((await service.visits(resident,DEMO.community,Object.assign(new VisitQuery(),{search:flat}))).items.length);
+    const page = await service.visits(
+      guard,
+      DEMO.community,
+      Object.assign(new VisitQuery(), {
+        search: "History QA",
+        type: "cab",
+        limit: 40,
+        cursor,
+      }),
+    );
+    ids.push(...page.items.map((i) => i.id));
+    cursor = page.next_cursor ?? undefined;
+  } while (cursor);
+  assert.equal(ids.length, 105);
+  assert.equal(new Set(ids).size, 105);
+  const none = await service.visits(
+    guard,
+    DEMO.community,
+    Object.assign(new VisitQuery(), { search: "History QA", type: "delivery" }),
+  );
+  assert.equal(none.items.length, 0);
+  const future = await service.visits(
+    guard,
+    DEMO.community,
+    Object.assign(new VisitQuery(), { from: "2099-01-01T00:00:00Z" }),
+  );
+  assert.equal(future.items.length, 0);
+  assert.ok(
+    (
+      await service.visits(
+        guard,
+        DEMO.community,
+        Object.assign(new VisitQuery(), { search: "9876543210" }),
+      )
+    ).items.length,
+  );
+  const flat = (await service.structure(admin, DEMO.community)).units.find(
+    (u) => u.id === DEMO.unit,
+  )!.label;
+  assert.ok(
+    (
+      await service.visits(
+        resident,
+        DEMO.community,
+        Object.assign(new VisitQuery(), { search: flat }),
+      )
+    ).items.length,
+  );
 });
-test('whitespace names are rejected after trimming', async () => {
-  const dto=plainToInstance(VisitorDto,{name:'   ',phone:'9876543210',unit_id:DEMO.unit,type:'guest'});
-  assert.ok((await validate(dto)).some(e=>e.property==='name'));
+test("whitespace names are rejected after trimming", async () => {
+  const dto = plainToInstance(VisitorDto, {
+    name: "   ",
+    phone: "9876543210",
+    unit_id: DEMO.unit,
+    type: "guest",
+  });
+  assert.ok((await validate(dto)).some((e) => e.property === "name"));
 });
 test("complete visit journey commits timestamps and audit events", async () => {
   const dto = Object.assign(new VisitorDto(), {
@@ -256,45 +392,171 @@ test("cursor pagination returns distinct visits", async () => {
   assert.ok(next.items.every((e) => !page.items.some((p) => p.id === e.id)));
 });
 
-test('listing drafts remain private, bookmarks persist, and only authors can close them',async()=>{
-  const content=new ContentService(service);
-  const item=await content.create(resident,DEMO.community,Object.assign(new ItemDto(),{kind:'listing',title:'Test desk',description:'A well cared for desk',category:'Furniture',price:1500,status:'draft'}));
-  await assert.rejects(content.detail(guard,DEMO.community,item.id));
-  await content.status(resident,DEMO.community,item.id,'published');
-  assert.equal((await content.bookmark(guard,DEMO.community,item.id)).saved,true);
-  assert.equal((await content.detail(guard,DEMO.community,item.id)).saved,true);
-  await assert.rejects(content.status(guard,DEMO.community,item.id,'closed'));
-  await content.status(resident,DEMO.community,item.id,'closed');
-  await assert.rejects(content.detail(guard,DEMO.community,item.id));
+test("listing drafts remain private, bookmarks persist, and only authors can close them", async () => {
+  const content = new ContentService(service);
+  const item = await content.create(
+    resident,
+    DEMO.community,
+    Object.assign(new ItemDto(), {
+      kind: "listing",
+      title: "Test desk",
+      description: "A well cared for desk",
+      category: "Furniture",
+      price: 1500,
+      status: "draft",
+    }),
+  );
+  await assert.rejects(content.detail(guard, DEMO.community, item.id));
+  await content.status(resident, DEMO.community, item.id, "published");
+  assert.equal(
+    (await content.bookmark(guard, DEMO.community, item.id)).saved,
+    true,
+  );
+  assert.equal(
+    (await content.detail(guard, DEMO.community, item.id)).saved,
+    true,
+  );
+  await assert.rejects(
+    content.status(guard, DEMO.community, item.id, "closed"),
+  );
+  await content.status(resident, DEMO.community, item.id, "closed");
+  await assert.rejects(content.detail(guard, DEMO.community, item.id));
 });
-test('property listings require ownership and community posts support comments',async()=>{
-  const content=new ContentService(service);
-  await assert.rejects(content.create(guard,DEMO.community,Object.assign(new ItemDto(),{kind:'property',title:'Wrong owner',unit_id:DEMO.unit,listing_type:'rent',available_on:'2027-01-01'})));
-  const item=await content.create(resident,DEMO.community,Object.assign(new ItemDto(),{kind:'property',title:'Owner listed home',unit_id:DEMO.unit,listing_type:'rent',available_on:'2027-01-01'}));
-  assert.equal(item.unit_id,DEMO.unit);
-  const post=await content.create(resident,DEMO.community,Object.assign(new ItemDto(),{kind:'post',title:'Weekend gardening',description:'Join the neighbours'}));
-  await content.comment(resident,DEMO.community,post.id,{message:'Count me in'});
-  assert.equal((await content.detail(resident,DEMO.community,post.id)).comments.length,1);
+test("property listings require ownership and community posts support comments", async () => {
+  const content = new ContentService(service);
+  await assert.rejects(
+    content.create(
+      guard,
+      DEMO.community,
+      Object.assign(new ItemDto(), {
+        kind: "property",
+        title: "Wrong owner",
+        unit_id: DEMO.unit,
+        listing_type: "rent",
+        available_on: "2027-01-01",
+      }),
+    ),
+  );
+  const item = await content.create(
+    resident,
+    DEMO.community,
+    Object.assign(new ItemDto(), {
+      kind: "property",
+      title: "Owner listed home",
+      unit_id: DEMO.unit,
+      listing_type: "rent",
+      available_on: "2027-01-01",
+    }),
+  );
+  assert.equal(item.unit_id, DEMO.unit);
+  const post = await content.create(
+    resident,
+    DEMO.community,
+    Object.assign(new ItemDto(), {
+      kind: "post",
+      title: "Weekend gardening",
+      description: "Join the neighbours",
+    }),
+  );
+  await content.comment(resident, DEMO.community, post.id, {
+    message: "Count me in",
+  });
+  assert.equal(
+    (await content.detail(resident, DEMO.community, post.id)).comments.length,
+    1,
+  );
 });
-test('enquiries are private to participants and only recipients can reply',async()=>{
-  const content=new ContentService(service);
-  const item=await content.create(admin,DEMO.community,Object.assign(new ItemDto(),{kind:'listing',title:'Admin listing',price:500}));
-  const inquiry=await content.inquire(resident,DEMO.community,item.id,{message:'Is this still available?'});
-  assert.ok((await content.inquiries(resident,DEMO.community)).some(i=>i.id===inquiry.id));
-  assert.ok(!(await content.inquiries(guard,DEMO.community)).some(i=>i.id===inquiry.id));
-  await assert.rejects(content.reply(resident,DEMO.community,inquiry.id,{message:'Forged reply'}));
-  assert.equal((await content.reply(admin,DEMO.community,inquiry.id,{message:'Yes, available'})).reply,'Yes, available');
+test("enquiries are private to participants and only recipients can reply", async () => {
+  const content = new ContentService(service);
+  const item = await content.create(
+    admin,
+    DEMO.community,
+    Object.assign(new ItemDto(), {
+      kind: "listing",
+      title: "Admin listing",
+      price: 500,
+    }),
+  );
+  const inquiry = await content.inquire(resident, DEMO.community, item.id, {
+    message: "Is this still available?",
+  });
+  assert.ok(
+    (await content.inquiries(resident, DEMO.community)).some(
+      (i) => i.id === inquiry.id,
+    ),
+  );
+  assert.ok(
+    !(await content.inquiries(guard, DEMO.community)).some(
+      (i) => i.id === inquiry.id,
+    ),
+  );
+  await assert.rejects(
+    content.reply(resident, DEMO.community, inquiry.id, {
+      message: "Forged reply",
+    }),
+  );
+  assert.equal(
+    (
+      await content.reply(admin, DEMO.community, inquiry.id, {
+        message: "Yes, available",
+      })
+    ).reply,
+    "Yes, available",
+  );
 });
-test('service requests require an approved home and administrator confirmation',async()=>{
-  const content=new ContentService(service);
-  await assert.rejects(content.create(resident,DEMO.community,Object.assign(new ItemDto(),{kind:'service',title:'Unauthorised service'})));
-  const item=await content.create(admin,DEMO.community,Object.assign(new ItemDto(),{kind:'service',title:'Test cleaning',price:500}));
-  const date=new Date(Date.now()+86400000).toISOString().slice(0,10);
-  await assert.rejects(content.book(guard,DEMO.community,item.id,{unit_id:DEMO.unit,scheduled_on:date,note:''}));
-  const booking=await content.book(resident,DEMO.community,item.id,{unit_id:DEMO.unit,scheduled_on:date,note:'Morning please'});
-  await assert.rejects(content.requestStatus(resident,DEMO.community,booking.id,'accepted'));
-  await assert.rejects(content.requestStatus(admin,DEMO.community,booking.id,'completed'));
-  await content.requestStatus(admin,DEMO.community,booking.id,'accepted');
-  assert.equal((await content.requestStatus(admin,DEMO.community,booking.id,'completed')).status,'completed');
-  await assert.rejects(content.requestStatus(resident,DEMO.community,booking.id,'cancelled'));
+test("service requests require an approved home and administrator confirmation", async () => {
+  const content = new ContentService(service);
+  await assert.rejects(
+    content.create(
+      resident,
+      DEMO.community,
+      Object.assign(new ItemDto(), {
+        kind: "service",
+        title: "Unauthorised service",
+      }),
+    ),
+  );
+  const item = await content.create(
+    admin,
+    DEMO.community,
+    Object.assign(new ItemDto(), {
+      kind: "service",
+      title: "Test cleaning",
+      price: 500,
+    }),
+  );
+  const date = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  await assert.rejects(
+    content.book(guard, DEMO.community, item.id, {
+      unit_id: DEMO.unit,
+      scheduled_on: date,
+      note: "",
+    }),
+  );
+  const booking = await content.book(resident, DEMO.community, item.id, {
+    unit_id: DEMO.unit,
+    scheduled_on: date,
+    note: "Morning please",
+  });
+  await assert.rejects(
+    content.requestStatus(resident, DEMO.community, booking.id, "accepted"),
+  );
+  await assert.rejects(
+    content.requestStatus(admin, DEMO.community, booking.id, "completed"),
+  );
+  await content.requestStatus(admin, DEMO.community, booking.id, "accepted");
+  assert.equal(
+    (
+      await content.requestStatus(
+        admin,
+        DEMO.community,
+        booking.id,
+        "completed",
+      )
+    ).status,
+    "completed",
+  );
+  await assert.rejects(
+    content.requestStatus(resident, DEMO.community, booking.id, "cancelled"),
+  );
 });

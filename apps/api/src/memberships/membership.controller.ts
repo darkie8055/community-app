@@ -9,6 +9,7 @@ import {
   Inject,
   ParseUUIDPipe,
   ForbiddenException,
+  BadRequestException,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import {
@@ -18,16 +19,21 @@ import {
   MinLength,
   MaxLength,
   IsOptional,
+  IsEmail,
 } from "class-validator";
+import { Transform } from "class-transformer";
+import { hash } from "bcryptjs";
 import { Database, Identity } from "../database/database";
 import { PlatformService } from "../communities/community.service";
 class SearchDto {
   @IsOptional() @IsString() @MaxLength(100) search?: string;
 }
 class StaffDto {
-  @IsString() @MinLength(2) @MaxLength(100) name!: string;
+  @Transform(({value}) => typeof value === "string" ? value.trim() : value) @IsString() @MinLength(2) @MaxLength(100) name!: string;
   @Matches(/^[6-9]\d{9}$/) phone!: string;
   @IsIn(["guard", "admin"]) role!: string;
+  @IsOptional() @IsEmail() email?: string;
+  @IsOptional() @IsString() @MinLength(12) @MaxLength(128) password?: string;
 }
 @ApiTags("Onboarding")
 @ApiBearerAuth()
@@ -103,12 +109,23 @@ export class OnboardingController {
         throw new ForbiddenException(
           "Only a platform administrator can appoint another administrator.",
         );
+      if (d.role === "guard" && (d.email || d.password))
+        throw new BadRequestException("Guards use verified phone sign-in.");
+      if (d.role === "admin" && (!d.email || !d.password))
+        throw new BadRequestException("Provide an email and password for administrator dashboard access.");
+      const existing = (await sql.query("SELECT id,email,password_hash FROM users WHERE phone=$1", [d.phone])).rows[0];
+      if (d.role === "admin" && existing?.email && existing.email.toLowerCase() !== d.email!.toLowerCase())
+        throw new BadRequestException("This phone number already belongs to another administrator email.");
       const user = (
         await sql.query(
           "INSERT INTO users(name,phone) VALUES($1,$2) ON CONFLICT(phone) DO UPDATE SET updated_at=now() RETURNING id",
           [d.name.trim(), d.phone],
         )
       ).rows[0];
+      // Assigning another society never resets an existing administrator's password.
+      if (d.role === "admin" && !existing?.password_hash) {
+        await sql.query("UPDATE users SET email=$2,password_hash=$3 WHERE id=$1", [user.id, d.email!.toLowerCase(), await hash(d.password!, 12)]);
+      }
       const row = (
         await sql.query(
           "INSERT INTO memberships(community_id,user_id,role,status) VALUES($1,$2,$3,'approved') ON CONFLICT(community_id,user_id,unit_id) DO UPDATE SET role=EXCLUDED.role,status='approved',decided_by=$4,decided_at=now() RETURNING *",

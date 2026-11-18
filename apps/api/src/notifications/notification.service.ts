@@ -33,7 +33,7 @@ export class JobsService implements OnModuleDestroy {
     this.redis.on("error", () => undefined);
     await this.redis.connect();
     this.subscriber = this.redis.duplicate();
-    await this.subscriber.subscribe("mycommunity:events");
+    await this.subscriber.subscribe("myhome:events");
     this.subscriber.on("message", (_channel, value) => {
       try {
         this.events.next(JSON.parse(value));
@@ -205,7 +205,7 @@ export class JobsService implements OnModuleDestroy {
     };
     if (this.redis) {
       try {
-        await this.redis.publish("mycommunity:events", JSON.stringify(event));
+        await this.redis.publish("myhome:events", JSON.stringify(event));
       } catch {
         this.events.next(event);
       }

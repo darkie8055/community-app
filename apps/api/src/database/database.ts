@@ -1,11 +1,11 @@
 import { Injectable, OnModuleDestroy } from "@nestjs/common";
-import { PGlite } from "@electric-sql/pglite";
 import { Pool, PoolClient } from "pg";
-import { readFileSync, readdirSync, mkdirSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 export type Row = Record<string, any>;
 export interface Sql {
+  exec?(sql: string): Promise<void>;
   query<T extends Row = Row>(
     sql: string,
     params?: any[],
@@ -16,42 +16,15 @@ export type Identity = { sub: string; name: string; platformAdmin: boolean };
 @Injectable()
 export class Database implements OnModuleDestroy {
   private pg?: Pool;
-  private embedded?: PGlite;
-  private serial: Promise<unknown> = Promise.resolve();
-  async init(options?: { memory?: boolean }) {
-    if (process.env.DB_MODE === "postgres" && !options?.memory) {
-      if (!process.env.DATABASE_URL)
-        throw new Error("DATABASE_URL is required");
-      this.pg = new Pool({
-        connectionString: process.env.DATABASE_URL,
-        max: 10,
-      });
-    } else {
-      if (process.env.NODE_ENV === "production")
-        throw new Error("Production requires native PostgreSQL");
-      const path = options?.memory
-        ? undefined
-        : resolve(process.env.PGLITE_PATH || "../../.local/postgres");
-      if (path) mkdirSync(path, { recursive: true });
-      this.embedded = new PGlite(path);
-      await this.embedded.waitReady;
-    }
-  }
-  private async exclusive<T>(work: () => Promise<T>): Promise<T> {
-    if (!this.embedded) return work();
-    const task = this.serial.then(work, work);
-    this.serial = task.catch(() => undefined);
-    return task;
+  async init() {
+    if (!process.env.DATABASE_URL) throw new Error('Configure DATABASE_URL before starting the API.');
+    this.pg = new Pool({connectionString: process.env.DATABASE_URL, max: 10, connectionTimeoutMillis: 10000});
+    await this.pg.query('SELECT 1');
   }
   async internal<T>(work: (sql: Sql) => Promise<T>): Promise<T> {
-    return this.exclusive(async () => {
-      const sql = this.pg ? await this.pg.connect() : this.embedded!;
-      try {
-        return await work(sql as Sql);
-      } finally {
-        if (this.pg) (sql as PoolClient).release();
-      }
-    });
+    if (!this.pg) throw new Error('The database connection is not initialized.');
+    const sql = await this.pg.connect();
+    try { return await work(sql as Sql); } finally { (sql as PoolClient).release(); }
   }
   async scoped<T>(
     userId: string,
@@ -101,7 +74,7 @@ export class Database implements OnModuleDestroy {
         const migration = readFileSync(resolve(directory, filename), "utf8");
         await sql.query("BEGIN");
         try {
-          if (this.embedded) await this.embedded.exec(migration);
+          if (sql.exec) await sql.exec(migration);
           else await sql.query(migration);
           await sql.query("INSERT INTO schema_migrations(version) VALUES($1)", [
             filename,
@@ -116,6 +89,5 @@ export class Database implements OnModuleDestroy {
   }
   async onModuleDestroy() {
     await this.pg?.end();
-    await this.embedded?.close();
   }
 }

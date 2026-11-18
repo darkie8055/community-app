@@ -1,0 +1,77 @@
+{
+  "cli": {
+    "version": ">= 16.0.0"
+  },
+  "build": {
+    "resident-development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "APP_VARIANT": "resident",
+        "APP_MODE": "live"
+      }
+    },
+    "guard-development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "APP_VARIANT": "guard",
+        "APP_MODE": "live"
+      }
+    },
+    "resident-preview": {
+      "distribution": "internal",
+      "env": {
+        "APP_VARIANT": "resident",
+        "APP_MODE": "live"
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "guard-preview": {
+      "distribution": "internal",
+      "env": {
+        "APP_VARIANT": "guard",
+        "APP_MODE": "live"
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "resident-production": {
+      "env": {
+        "APP_VARIANT": "resident",
+        "NODE_ENV": "production",
+        "APP_MODE": "live"
+      }
+    },
+    "guard-production": {
+      "env": {
+        "APP_VARIANT": "guard",
+        "NODE_ENV": "production",
+        "APP_MODE": "live"
+      }
+    },
+    "resident-demo": {
+      "distribution": "internal",
+      "env": {
+        "APP_VARIANT": "resident",
+        "APP_MODE": "demo"
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "guard-demo": {
+      "distribution": "internal",
+      "env": {
+        "APP_VARIANT": "guard",
+        "APP_MODE": "demo"
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    }
+  }
+}

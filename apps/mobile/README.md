@@ -1,5 +1,10 @@
-# Flutter resident and guard apps
+# My Home mobile
 
-See the [repository README](../../README.md) for setup, connected preview, Android flavors, Firebase mode and test commands. The Flutter app includes Social, Homes, Community, Buy & Sell and Stores, plus a separate guard workspace.
+Install Node.js 26.x and npm. Run these commands from the repository root:
 
-Entry points: `lib/main.dart` (switchable preview), `lib/main_resident.dart`, `lib/main_guard.dart` (standalone flavors). Without `API_BASE_URL` the app uses persisted local sample data. With an API URL it uses the NestJS backend. Set `AUTH_MODE=firebase` with Firebase options for verified phone sign-in.
+```sh
+npm ci
+npm start
+```
+
+Open the QR code with Expo Go (SDK 58), or run `npm run web` for a browser.

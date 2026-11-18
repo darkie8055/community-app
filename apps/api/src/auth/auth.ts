@@ -4,7 +4,6 @@ import {
   Injectable,
   Inject,
   UnauthorizedException,
-  ForbiddenException,
   Controller,
   Post,
   Body,
@@ -13,22 +12,19 @@ import {
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { ApiTags, ApiBearerAuth } from "@nestjs/swagger";
-import { IsEmail, IsIn, IsString, MaxLength, MinLength } from "class-validator";
+import { IsEmail, IsString, MaxLength, MinLength } from "class-validator";
+import { Transform } from "class-transformer";
 import { compare } from "bcryptjs";
 import { Database, Identity } from "../database/database";
-import { DEMO } from "../database/seed";
 import { Throttle } from "@nestjs/throttler";
 import { verifyFirebaseIdentity } from "./firebase-identity";
 export class LoginDto {
   @IsEmail() email!: string;
   @IsString() @MinLength(8) @MaxLength(128) password!: string;
 }
-export class DemoLoginDto {
-  @IsIn(["resident", "guard"]) role!: "resident" | "guard";
-}
 export class FirebaseLoginDto {
   @IsString() @MinLength(20) @MaxLength(5000) id_token!: string;
-  @IsString() @MinLength(2) @MaxLength(100) name!: string;
+  @Transform(({value}) => typeof value === "string" ? value.trim() : value) @IsString() @MinLength(2) @MaxLength(100) name!: string;
 }
 @Injectable()
 export class AuthService {
@@ -53,20 +49,6 @@ export class AuthService {
     );
     if (!user || !valid)
       throw new UnauthorizedException("Email or password is incorrect.");
-    return this.session(user);
-  }
-  async demo(role: "resident" | "guard") {
-    if (
-      process.env.DEMO_MODE !== "true" ||
-      process.env.NODE_ENV === "production"
-    )
-      throw new ForbiddenException("Demo identities are disabled.");
-    const user = await this.db.internal(
-      async (sql) =>
-        (await sql.query("SELECT * FROM users WHERE id=$1", [DEMO[role]]))
-          .rows[0],
-    );
-    if (!user) throw new UnauthorizedException("Demo is not seeded.");
     return this.session(user);
   }
   async firebase(dto: FirebaseLoginDto) {
@@ -110,7 +92,6 @@ export class AuthGuard implements CanActivate {
       [
         "/v1/health",
         "/v1/auth/login",
-        "/v1/auth/demo",
         "/v1/auth/firebase",
       ].includes(req.path)
     )
@@ -138,11 +119,6 @@ export class AuthController {
     @Body() dto: LoginDto,
   ) {
     return this.auth.login(dto);
-  }
-  @Post("demo") @Throttle({ default: { limit: 20, ttl: 60000 } }) demo(
-    @Body() dto: DemoLoginDto,
-  ) {
-    return this.auth.demo(dto.role);
   }
   @Post("firebase") @Throttle({ default: { limit: 12, ttl: 60000 } }) firebase(
     @Body() dto: FirebaseLoginDto,

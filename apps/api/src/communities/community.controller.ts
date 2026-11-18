@@ -48,7 +48,7 @@ export class PlatformController {
   @Get("health") health() {
     return {
       status: "ok",
-      mode: process.env.DEMO_MODE === "true" ? "demo" : "live",
+      mode: "live",
       ...this.jobs.status(),
     };
   }
@@ -253,15 +253,10 @@ export class PlatformController {
     @Param("community", ParseUUIDPipe) c: string,
     @Body() dto: UploadDto,
   ) {
-    await this.service.withCommunity(
-      r.user,
-      c,
-        null,
-      async () => true,
-    );
+    await this.service.withCommunity(r.user, c, null, async () => true);
     if (!process.env.S3_BUCKET)
       throw new ServiceUnavailableException(
-          "Photo storage is not configured. Ask your administrator to connect object storage.",
+        "Photo storage is not configured. Ask your administrator to connect object storage.",
       );
     const key = `${c}/${r.user.sub}/${randomUUID()}`;
     const s3 = new S3Client({

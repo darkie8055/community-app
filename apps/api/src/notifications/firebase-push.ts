@@ -7,7 +7,7 @@ export class FirebasePush {
   private projectId = "";
   async init() {
     this.projectId =
-      process.env.GOOGLE_CLOUD_PROJECT || (await this.auth.getProjectId());
+      process.env.FIREBASE_PROJECT_ID || (await this.auth.getProjectId());
     await this.auth.getAccessToken();
   }
   async send(

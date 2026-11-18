@@ -1,11 +1,11 @@
 # Visual references and assets
 
-- MyGate public UI reference: https://mygate.com/wp-content/uploads/2025/11/Society-Dashboard-Updates-July-25_compressed.pdf (resident home on page 20). The home structure informed the shortcut grid, visitor updates, society selector and mobile navigation. No MyGate logos or screenshots are bundled in the app.
-- Product behavior reference: https://mygate.com/community-management/residents/
-- The supplied product PDF informed the MVP flow. The user's narrower written MVP and Next.js admin stack take priority over the PDF.
-- Manrope variable font and OFL license bundled from https://github.com/google/fonts/tree/main/ofl/manrope.
-- Community photograph bundled from https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1000&q=85&fit=crop. It is illustrative, not a photograph of the fictional Palm Meadows demo society.
-- The apartment illustration (`NeighbourhoodArt`) and MyCommunity mark are original code-native artwork.
-- All names, visitor details, addresses within the fictional society, notices and memberships are sample data.
-- The user's supplied MyGate screenshots guided the updated beige/yellow design and five-tab layout. Their personal names, phone numbers, adverts and photographs are not copied into the app.
-- Sample catalogue photography is bundled from Unsplash via `tools/download_assets.py`: `photo-1503602642458-232111445657` (chair), `photo-1555041469-a586c61ea9bc` (sofa), `photo-1494976388531-d1058494cdd8` (car), `photo-1494438639946-1ebd1d20bf85` (decor), `photo-1485965120184-e220f721d03e` (bicycle), `photo-1581578731548-c64695cc6952` (cleaning), and `photo-1562259949-e8e7689d7828` (painting). The existing community photo also illustrates homes/moving/AC service cards. These are illustrative stock photos, not verified goods or providers.
+Updated 2 November 2026.
+
+The supplied MyGate screenshots guide the beige canvas, white cards, yellow actions, shortcut grid and five resident tabs. Their personal names/numbers, adverts, photos, logos and screenshots are not bundled. My Home uses its own mark and code-drawn apartment artwork.
+
+Manrope and its OFL license remain under `apps/mobile/assets/fonts`. The one remaining community photograph is decorative, not a product, service provider or claim about the user's society. Source: [Unsplash](https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1000&q=85&fit=crop). Unused stock catalog photos and their downloader have been removed from app source. Listings use an uploaded photo or a labelled neutral placeholder.
+
+`tools/assets/generate_icons.py` maintains original launcher art. Required platform launcher resources and font licenses remain. QR images are generated on request from authorized server-issued passes, not bundled sample images.
+
+Current app captures belong in `docs/screenshots`. Test screenshots and the QR decoding artifact are ignored under `.local/logs`. Old demo screenshots/APKs have been archived outside deliverable folders.

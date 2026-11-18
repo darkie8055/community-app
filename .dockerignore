@@ -2,7 +2,6 @@
 **/.next
 **/dist
 **/build
-**/.dart_tool
 .git
 .local
 tmp
@@ -15,3 +14,17 @@ screenshots
 **/GoogleService-Info.plist
 **/key.properties
 **/*.jks
+**/*.keystore
+**/*service-account*.json
+**/*adminsdk*.json
+**/secrets
+**/.secrets
+
+**/test
+**/tests
+tools/qa
+**/config/*.local.json
+
+**/.expo
+apps/mobile/android
+apps/mobile/ios

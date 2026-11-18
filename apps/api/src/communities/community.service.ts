@@ -6,8 +6,7 @@ import {
   ConflictException,
   BadRequestException,
 } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
-import { attachPhoto } from '../storage/object-storage';
+import { attachPhoto } from "../storage/object-storage";
 import { Database, Identity, Sql, Row } from "../database/database";
 import {
   BlockDto,
@@ -288,13 +287,18 @@ export class PlatformService {
             access.units,
             query.cursor || null,
             (query.limit || 50) + 1,
-            query.type || null, query.from || null, query.until || null,
+            query.type || null,
+            query.from || null,
+            query.until || null,
           ],
         )
       ).rows;
       const hasMore = rows.length > (query.limit || 50);
       if (hasMore) rows.pop();
-      return { items: await Promise.all(rows.map(attachPhoto)), next_cursor: hasMore ? rows.at(-1)!.id : null };
+      return {
+        items: await Promise.all(rows.map(attachPhoto)),
+        next_cursor: hasMore ? rows.at(-1)!.id : null,
+      };
     });
   }
   async visit(user: Identity, community: string, id: string) {

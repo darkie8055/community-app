@@ -1,0 +1,20 @@
+name: React Native mobile
+on:
+  push:
+  pull_request:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+          cache: npm
+      - run: npm ci
+      - run: npm run check:mobile
+      - run: npm run test:mobile
+      - run: npm run test:config
+      - run: npm run build:mobile
+      - run: npx expo install --check
+        working-directory: apps/mobile

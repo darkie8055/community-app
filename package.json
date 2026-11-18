@@ -1,26 +1,47 @@
 {
-  "name": "mycommunity-platform",
+  "name": "my-home",
   "private": true,
   "workspaces": [
     "apps/api",
-    "apps/admin"
+    "apps/mobile"
   ],
   "scripts": {
-    "dev:api": "npm run dev -w @mycommunity/api",
-    "dev:admin": "npm run dev -w @mycommunity/admin",
-    "build": "npm run build -w @mycommunity/api && npm run build -w @mycommunity/admin",
-    "test:api": "npm run test -w @mycommunity/api",
-    "db:migrate": "npm run migrate -w @mycommunity/api"
+    "start": "node tools/start-mobile.cjs mobile",
+    "web": "node tools/start-mobile.cjs web",
+    "android": "node tools/android.cjs run",
+    "ios": "node tools/start-mobile.cjs ios",
+    "android:prepare": "node tools/android.cjs prepare",
+    "android:metro": "node tools/android.cjs metro",
+    "dev:api": "npm run dev -w @my-home/api",
+    "build": "npm run build -w @my-home/api",
+    "test:api": "npm run test -w @my-home/api",
+    "db:migrate": "npm run migrate -w @my-home/api",
+    "qa:mobile": "node tools/qa/mobile.cjs",
+    "config:check": "node tools/configure.cjs check",
+    "test:config": "node --test tools/qa/config.test.cjs",
+    "dev:mobile": "npm run start -w @my-home/mobile",
+    "check:mobile": "npm run typecheck -w @my-home/mobile",
+    "test:mobile": "npm run test -w @my-home/mobile",
+    "build:mobile": "npm run export -w @my-home/mobile"
   },
   "engines": {
-    "node": ">=24"
+    "node": "26.x"
   },
   "overrides": {
     "glob": "^14.0.3",
-    "minimatch": "^11.0.3"
+    "minimatch": "^11.0.3",
+    "@grpc/grpc-js": "^1.14.7"
   },
   "devDependencies": {
+    "jsqr": "^1.4.0",
     "playwright": "^1.56.0",
+    "pngjs": "^7.0.0",
     "prettier": "^3.9.10"
+  },
+  "version": "1.0.0",
+  "dependencies": {
+    "expo": "~58.0.23",
+    "react": "19.3.0",
+    "react-native": "0.88.1"
   }
 }
